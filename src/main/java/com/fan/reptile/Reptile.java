@@ -1,14 +1,17 @@
 package com.fan.reptile;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.URLUtil;
+import cn.hutool.core.util.StrUtil;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 
 /**
  * @author zhangFan
@@ -16,12 +19,23 @@ import java.net.URL;
  */
 public class Reptile {
     //静态资源输出路径
-    static String out = "D:\\develop\\IdeaProjects\\reptile\\src\\main\\resources";
+    static String out = "E:\\Workspaces\\reptile\\src\\main\\resources";
     //要爬取的静态页面url
-    static URL index = URLUtil.url("http://192.168.189.132:80/index.php/login");
+    static URL index;
+
+    static {
+        try {
+            index = new URL("http://10.7.212.226/drupal/user/login");
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+    }
 
     public static void main(String[] args) throws IOException {
-        Document document = Jsoup.connect(index.toString()).get();
+        // 保存静态页面html
+        saveStaticResource(index.toString());
+        // 保存页面中引用的js，css，img等
+        Document document = Jsoup.newSession().url(index).get();
         Elements scripts = document.select("script");
         for (Element script : scripts) {
             String src = script.attr("src");
@@ -42,11 +56,30 @@ public class Reptile {
     }
 
     private static void saveStaticResource(String url) throws IOException {
-        URL url1 = URLUtil.url(Reptile.index.getProtocol() + "://" + Reptile.index.getHost() + ":" + Reptile.index.getPort() + url);
-        Document scriptDoc = Jsoup.connect(url1.toString()).get();
-        String content = scriptDoc.body().html();
+        if (StrUtil.isEmpty(url)) {
+            return;
+        }
+        URL url1;
+        try {
+            url1 = new URL(url);
+        } catch (MalformedURLException e) {
+            String protocol = Reptile.index.getProtocol();
+            int defaultPort = "https".equals(protocol) ? 443 : 80;
+            int port = Reptile.index.getPort();
+            port = port == -1 ? defaultPort : port;
+            url1 = new URL(protocol + "://" + Reptile.index.getHost() + ":" + port + url);
+        }
+        System.out.println("开始获取：" + url1);
+        URLConnection urlConnection = url1.openConnection();
+        InputStream is = null;
+        try {
+            is = urlConnection.getInputStream();
+        } catch (IOException e) {
+            System.out.println("连接失败！");
+            return;
+        }
         //去除url中的参数
         String path = out + url1.getPath();
-        FileUtil.writeString(content, FileUtil.file(path), scriptDoc.charset());
+        FileUtil.writeFromStream(is, FileUtil.file(path));
     }
 }
