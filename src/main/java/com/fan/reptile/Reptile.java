@@ -1,37 +1,42 @@
 package com.fan.reptile;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.CharsetUtil;
 import cn.hutool.core.util.StrUtil;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.Charset;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author zhangFan
- * @since 2021/12/1 下午 05:13
+ * @since 2022/02/14 下午 05:13
  */
 public class Reptile {
-    //静态资源输出路径
-    static String out = "E:\\Workspaces\\reptile\\src\\main\\resources";
-    //要爬取的静态页面url
+    /**
+     * 静态资源输出路径
+     */
+    static String out = "D:\\develop\\IdeaProjects\\reptile\\src\\main\\resources";
+    /**
+     * 要爬取的静态页面url
+     */
+    static String staticHtml = "https://www.freebuf.com/vuls/289282.html";
     static URL index;
 
-    static {
-        try {
-            index = new URL("http://10.7.212.226/drupal/user/login");
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
-    }
+    static Pattern pattern = Pattern.compile("url\\(([^)]*)\\)");
 
     public static void main(String[] args) throws IOException {
+        index = new URL(staticHtml);
         // 保存静态页面html
         saveStaticResource(index.toString());
         // 保存页面中引用的js，css，img等
@@ -63,15 +68,24 @@ public class Reptile {
         try {
             url1 = new URL(url);
         } catch (MalformedURLException e) {
-            String protocol = Reptile.index.getProtocol();
-            int defaultPort = "https".equals(protocol) ? 443 : 80;
-            int port = Reptile.index.getPort();
-            port = port == -1 ? defaultPort : port;
-            url1 = new URL(protocol + "://" + Reptile.index.getHost() + ":" + port + url);
+            if (url.startsWith("/")) {
+                //根目录
+                String path = index.getPath();
+                url = staticHtml.replace(path, url);
+            } else if (url.startsWith("./")) {
+                //当前目录
+                url = staticHtml.replaceAll("/[^/]*$", url.replace("./", "/"));
+            } else if (url.startsWith("../")) {
+                //上级目录
+                url = staticHtml.replaceAll("/[^/]*/[^/]*$", url.replace("../", "/"));
+            } else {
+                url = staticHtml.replaceAll("/[^/]*$", "/" + url);
+            }
+            url1 = new URL(url);
         }
         System.out.println("开始获取：" + url1);
         URLConnection urlConnection = url1.openConnection();
-        InputStream is = null;
+        InputStream is;
         try {
             is = urlConnection.getInputStream();
         } catch (IOException e) {
@@ -80,6 +94,38 @@ public class Reptile {
         }
         //去除url中的参数
         String path = out + url1.getPath();
-        FileUtil.writeFromStream(is, FileUtil.file(path));
+        File file = FileUtil.file(path);
+        FileUtil.writeFromStream(is, file);
+        String contentEncoding = urlConnection.getContentEncoding();
+        if (contentEncoding == null) {
+            contentEncoding = "GBK";
+        }
+        Charset charset = CharsetUtil.charset(contentEncoding);
+        String content = FileUtil.readString(file, charset);
+        Matcher matcher = pattern.matcher(content);
+        while (matcher.find()) {
+            String group = matcher.group(1);
+            if (group.startsWith("'") || group.startsWith("\"")) {
+                group = group.substring(1, group.length() - 1);
+            }
+            if (group.startsWith("../")) {
+                String s = url1.toString().replaceAll("/[^/]*/[^/]*$", group.replace("../", "/"));
+                if (!s.isEmpty()) {
+                    saveStaticResource(s);
+                }
+            } else if (group.startsWith("./")) {
+                String s = url1.toString().replaceAll("/[^/]*$", group.replace("./", "/"));
+                if (!s.isEmpty()) {
+                    saveStaticResource(s);
+                }
+            } else if (group.startsWith("/")) {
+                String s = staticHtml.replace(index.getPath(), group);
+                if (!s.isEmpty()) {
+                    saveStaticResource(s);
+                }
+            } else {
+                System.out.println("group = " + group);
+            }
+        }
     }
 }
