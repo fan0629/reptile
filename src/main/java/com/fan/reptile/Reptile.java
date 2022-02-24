@@ -35,6 +35,10 @@ public class Reptile {
 
     static Pattern pattern = Pattern.compile("url\\(([^)]*)\\)");
 
+    static String rootDir = "/";
+    static String currentDir = "./";
+    static String parentDir = "../";
+
     public static void main(String[] args) throws IOException {
         index = new URL(staticHtml);
         // 保存静态页面html
@@ -68,14 +72,14 @@ public class Reptile {
         try {
             url1 = new URL(url);
         } catch (MalformedURLException e) {
-            if (url.startsWith("/")) {
+            if (url.startsWith(rootDir)) {
                 //根目录
                 String path = index.getPath();
                 url = staticHtml.replace(path, url);
-            } else if (url.startsWith("./")) {
+            } else if (url.startsWith(currentDir)) {
                 //当前目录
                 url = staticHtml.replaceAll("/[^/]*$", url.replace("./", "/"));
-            } else if (url.startsWith("../")) {
+            } else if (url.startsWith(parentDir)) {
                 //上级目录
                 url = staticHtml.replaceAll("/[^/]*/[^/]*$", url.replace("../", "/"));
             } else {
