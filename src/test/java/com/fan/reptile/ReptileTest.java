@@ -1,11 +1,7 @@
 package com.fan.reptile;
 
-import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.URLUtil;
 import org.junit.jupiter.api.Test;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 
 /**
  * @author zhang_fan
@@ -25,10 +21,8 @@ class ReptileTest {
     }
 
     @Test
-    void copyTest() throws FileNotFoundException {
-        long start = System.currentTimeMillis();
-        FileInputStream in = new FileInputStream(out + "\\assets\\application-c713cd7dc8228e6522617974b28ae4b0aaee0c42a7301a1e586d0c82c34f20cd.css");
-        FileUtil.writeFromStream(in, new File(out + "test.css"));
-        System.out.println("耗时 = " + (System.currentTimeMillis() - start));
+    void urlTest() {
+        String url = URLUtil.completeUrl("http://10.7.211.5:18081/#/home", "123");
+        System.out.println("url = " + url);
     }
 }

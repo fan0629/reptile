@@ -49,8 +49,6 @@ public class Reptile {
 
     Pattern pattern = Pattern.compile("url\\(([^)]*)\\)");
     String rootDir = "/";
-    String currentDir = "./";
-    String parentDir = "../";
 
     private final Set<String> urlSet = new HashSet<>();
     private URL targetUrl;
@@ -109,14 +107,14 @@ public class Reptile {
         Element base = document.selectFirst("base");
         if (base != null) {
             String baseHref = base.attr("href");
-            staticHtml = restoreFullUrl(baseHref, targetUrl);
+            staticHtml = restoreFullUrl(baseHref, staticHtml);
         }
 
         Elements scripts = document.select("script");
         for (Element script : scripts) {
             String src = script.attr("src");
             if (!src.isEmpty()) {
-                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(src, index)));
+                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(src, url)));
                 resultList.add(future);
             }
         }
@@ -125,7 +123,7 @@ public class Reptile {
         for (Element link : links) {
             String href = link.attr("href");
             if (!href.isEmpty()) {
-                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(href, index)));
+                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(href, url)));
                 resultList.add(future);
             }
         }
@@ -134,12 +132,12 @@ public class Reptile {
         for (Element img : imgs) {
             String src = img.attr("src");
             if (!src.isEmpty()) {
-                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(src, index)));
+                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(src, url)));
                 resultList.add(future);
             }
             String dataSrc = img.attr("data-src");
             if (!dataSrc.isEmpty()) {
-                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(dataSrc, index)));
+                Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(restoreFullUrl(dataSrc, url)));
                 resultList.add(future);
             }
         }
@@ -149,7 +147,7 @@ public class Reptile {
             Elements a = document.select("a");
             for (Element element : a) {
                 String href = element.attr("href");
-                String fullUrl = restoreFullUrl(href, index);
+                String fullUrl = restoreFullUrl(href, url);
                 if (!fullUrl.isEmpty() && !fullUrl.equals(staticHtml)) {
                     int finalDep = dep;
                     Future<?> future = ReptileTaskExecutor.submit(() -> saveDocument(fullUrl, finalDep));
@@ -222,7 +220,7 @@ public class Reptile {
             if (group.startsWith("'") || group.startsWith("\"")) {
                 group = group.substring(1, group.length() - 1);
             }
-            String fullUrl = restoreFullUrl(group, url1);
+            String fullUrl = restoreFullUrl(group, urlPath);
             if (!fullUrl.isEmpty()) {
                 Future<?> future = ReptileTaskExecutor.submit(() -> saveStaticResource(fullUrl));
                 resultList.add(future);
@@ -238,38 +236,16 @@ public class Reptile {
         return file;
     }
 
-    private String restoreFullUrl(String oldUrl, URL refererUrl) {
-        if (oldUrl.contains("data:image/png;base64,") ||
-                oldUrl.contains("data:image/gif;base64,")) {
+    private String restoreFullUrl(String relativePath, String baseUrl) {
+        if (relativePath.contains("data:image/png;base64,") || relativePath.contains("data:image/gif;base64,")) {
             return "";
         }
-        if (oldUrl.startsWith("http")) {
-            return oldUrl;
-        }
-        if (oldUrl.startsWith("//")) {
-            return "http:" + oldUrl;
-        }
-        String fullUrl;
-        if (oldUrl.startsWith(rootDir)) {
-            //根目录
-            String path = refererUrl.getPath();
-            fullUrl = refererUrl.toString().replace(path, oldUrl);
-        } else if (oldUrl.startsWith(currentDir)) {
-            //当前目录
-            fullUrl = refererUrl.toString().replaceAll("/[^/]*$", oldUrl.replace("./", "/"));
-        } else if (oldUrl.startsWith(parentDir)) {
-            //上级目录
-            fullUrl = refererUrl.toString().replaceAll("/[^/]*/[^/]*$", oldUrl.replace("../", "/"));
-        } else {
-            fullUrl = refererUrl.toString().replaceAll("/[^/]*$", "/" + oldUrl);
-        }
-        return fullUrl;
+        return URLUtil.completeUrl(String.valueOf(baseUrl), relativePath);
     }
 
     /**
      * 信任任何站点，实现https页面的正常访问
      */
-
     public static void trustEveryone() {
         try {
             HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
